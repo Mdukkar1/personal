@@ -92,6 +92,13 @@ body.cur,body.cur *{cursor:none!important}
 </main>
 <div id="ring"><div><div style="font-size:3rem">⏰</div><h2 id="rmsg"></h2><button class="btn p" onclick="stopRing()">OK, I’m on it! · ঠিক আছে</button></div></div>
 <div id="mic"><button onclick="mic()" title="Voice assistant">🎤</button><button id="vlb" onclick="vl=vl=='en-US'?'bn-BD':'en-US';this.textContent=vl=='en-US'?'EN':'বাং'">EN</button></div><div id="pa"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* PASTE YOUR FIREBASE CONFIG HERE (see README). Leave apiKey empty to use offline profiles only. */
+const FIREBASE_CONFIG={apiKey:"",authDomain:"",projectId:"",storageBucket:"",messagingSenderId:"",appId:""};
+</script>
 <script>
 const $=id=>document.getElementById(id);
 const CATS={Course:"#6a5acd",Film:"#e0603a",Teaching:"#2f7d6d",Shop:"#c28a00",Social:"#d6336c",Other:"#6b7280",Rest:"#38a3a5"};
@@ -100,7 +107,7 @@ const TIPS=["Lip-sync: animate the vowels’ jaw shapes first (A, O, U, M/B/P), 
 const DEF={tasks:[{id:1,n:"Lip-sync assignment",c:"Course",m:90,p:3,d:0},{id:2,n:"Work on our film",c:"Film",m:60,p:2,d:0},{id:3,n:"Post on Facebook / Instagram",c:"Social",m:20,p:1,d:0}],plan:{},log:{},rest:{},diary:{},alarms:[],wt:null,rt:null,tab:"today",money:{pin:null,tx:[],budget:0},goals:[],dues:[],prac:[],imgs:[],posts:[],shop:[],stock:[],set:{free:"13:30",end:"22:00",madS:"09:00",madE:"13:00",shop:false,shopS:"17:00",shopE:"20:00",goal:"Finish my animation course",aim:"Make our film",restGoal:60}};
 let UK=null,S=JSON.parse(JSON.stringify(DEF));
 S.set=Object.assign({},DEF.set,S.set);
-const save=()=>{try{UK&&localStorage.setItem(UK,JSON.stringify(S))}catch(e){try{toast("⚠ Storage full – delete old images or download a backup")}catch(x){}}};
+const save=()=>{try{cloudPush();UK&&localStorage.setItem(UK,JSON.stringify(S))}catch(e){try{toast("⚠ Storage full – delete old images or download a backup")}catch(x){}}};
 const td=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const toM=t=>{const[a,b]=t.split(":");return +a*60+ +b};
 const nowM=()=>{const d=new Date();return d.getHours()*60+d.getMinutes()};
@@ -326,6 +333,20 @@ if(matchMedia('(pointer:fine)').matches){const ci=document.createElement('div');
  addEventListener('mousedown',e=>{ci.classList.add('k');setTimeout(()=>ci.classList.remove('k'),300);const s={money:'🪙',shop:'🛍️',diary:'✨',goals:'⭐',tasks:'✔️'}[S.tab];if(s)spark(s,e.clientX,e.clientY)});
  document.addEventListener('mouseleave',()=>ci.style.opacity=0)}
 (function(){if(!U().length&&localStorage.getItem('daydesk')){try{const d=JSON.parse(localStorage.getItem('daydesk'));d.prof={done:1,roles:['Animator','Teacher'],tabs:ALL.slice(),fixed:'Madrasha teaching · মাদ্রাসা'};localStorage.setItem('dd_data_1',JSON.stringify(d));setU([{id:1,name:'Me',av:'🙂',pin:null}])}catch(e){}}})();
+
+/* ---------- v6: real accounts (Firebase) ---------- */
+const CLOUD=!!FIREBASE_CONFIG.apiKey&&!!window.firebase;let fa,fdb,cu=null,pT,synced=new Set();
+if(CLOUD){firebase.initializeApp(FIREBASE_CONFIG);fa=firebase.auth();fdb=firebase.firestore();try{localStorage.removeItem('dd_last')}catch(e){}}
+const _sa=showAuth;showAuth=function(){CLOUD?showCloud():_sa()};
+function showCloud(m){ovl(`<h1>📒 My Daily Desk</h1><p class='mut'>${m?'Create your account · নতুন অ্যাকাউন্ট':'Sign in · লগ ইন'}</p>${m?`<input id='cn' style='width:100%;margin:4px 0' placeholder='Your name · নাম'>`:''}<input id='ce' type='email' style='width:100%;margin:4px 0' placeholder='Email'><input id='cp' type='password' style='width:100%;margin:4px 0' placeholder='Password (6+ characters)' onkeydown='if(event.key==\"Enter\")cloudGo(${m?1:0})'><button class='btn p' style='width:100%;margin-top:8px' onclick='cloudGo(${m?1:0})'>${m?'Create account':'Sign in'}</button><p class='mut' id='ce2'></p><div class='row'><button class='btn' onclick='showCloud(${m?0:1})'>${m?'I already have an account':'New here? Create account'}</button>${m?'':`<button class='btn' onclick='cloudReset()'>Forgot password</button>`}<button class='btn' onclick='_sa()'>Offline profile</button></div>`)}
+async function cloudGo(m){const e=$('ce').value.trim(),p=$('cp').value;$('ce2').textContent='…';try{if(m){const n=$('cn').value.trim();if(!n){$('ce2').textContent='Enter your name';return}const c=await fa.createUserWithEmailAndPassword(e,p);await c.user.updateProfile({displayName:n})}else await fa.signInWithEmailAndPassword(e,p)}catch(x){$('ce2').textContent=x.message}}
+function cloudReset(){const e=$('ce').value.trim();if(!e){$('ce2').textContent='Type your email first';return}fa.sendPasswordResetEmail(e).then(()=>$('ce2').textContent='Reset link sent to your email ✉️').catch(x=>$('ce2').textContent=x.message)}
+async function cloudLoad(u){const k='dd_cloud_'+u.uid;let d=null,im=[];try{const s=await fdb.doc('users/'+u.uid).get();if(s.exists)d=JSON.parse(s.data().json||'{}');const q=await fdb.collection('users/'+u.uid+'/imgs').get();im=q.docs.map(x=>x.data())}catch(e){toast('Offline – using saved copy')}if(!d){try{d=JSON.parse(localStorage.getItem(k)||'null')}catch(e){}}cloudLogin(d||{},!d,u,im)}
+function cloudLogin(d,isNew,u,im){UK='dd_cloud_'+u.uid;S=Object.assign(JSON.parse(JSON.stringify(DEF)),d);S.set=Object.assign({},DEF.set,S.set);S.cats=S.cats||[];Object.keys(CATS).forEach(k=>{if(!BASE.includes(k))delete CATS[k]});S.cats.forEach(c=>CATS[c.n]=c.c);if(isNew){S.tasks=[];S.set.goal=S.set.aim='';S.set.madS=S.set.madE='09:00';S.prof={tabs:[],roles:[],fixed:'Work / class'}}S.prof=S.prof||{};S.prof.name=u.displayName||(u.email||'me').split('@')[0];S.prof.av=S.prof.av||'🙂';S.imgs=im;synced=new Set(im.map(i=>i.id));fired.clear();W={roles:[],custom:'',sec:null};cu=u;const a=$('auth');if(a)a.remove();save();if(!S.prof.done)wiz(1);else render()}
+function cloudPush(){if(!cu||!UK||UK!='dd_cloud_'+cu.uid)return;clearTimeout(pT);pT=setTimeout(async()=>{try{const{imgs,...rest}=S,ids=new Set(imgs.map(i=>String(i.id)));await fdb.doc('users/'+cu.uid).set({json:JSON.stringify(rest),t:Date.now()});for(const i of imgs)if(!synced.has(i.id)){await fdb.doc('users/'+cu.uid+'/imgs/'+i.id).set(i);synced.add(i.id)}for(const id of[...synced])if(!ids.has(String(id))){await fdb.doc('users/'+cu.uid+'/imgs/'+id).delete();synced.delete(id)}}catch(e){toast('Sync failed – saved on this device')}},1500)}
+const _lo=logout;logout=function(){if(cu){save();cu=null;UK=null;const w=$('who');if(w)w.remove();fa.signOut();showCloud();return}_lo()};
+const _du=delUser;delUser=async function(){if(!cu)return _du();if(!confirm('Delete your account and ALL cloud data?'))return;const u=cu;try{const q=await fdb.collection('users/'+u.uid+'/imgs').get();for(const x of q.docs)await x.ref.delete();await fdb.doc('users/'+u.uid).delete();try{localStorage.removeItem('dd_cloud_'+u.uid)}catch(e){}await u.delete()}catch(e){toast('Please sign in again, then delete')}cu=null;UK=null;showCloud()};
+if(CLOUD)fa.onAuthStateChanged(u=>{if(u){if(!cu||cu.uid!=u.uid)cloudLoad(u)}else if(!UK||UK.startsWith('dd_cloud_')){cu=null;UK=null;if(!$('auth'))showCloud()}});
 
 /* ---------- tick ---------- */
 function tick(){const d=new Date();$("clk").textContent=d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
